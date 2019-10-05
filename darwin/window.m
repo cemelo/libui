@@ -14,6 +14,7 @@ struct uiWindow {
 	void (*onContentSizeChanged)(uiWindow *, void *);
 	void *onContentSizeChangedData;
 	BOOL suppressSizeChanged;
+    BOOL suppressPositionChanged;
 	int fullscreen;
 	int borderless;
 };
@@ -404,4 +405,41 @@ uiWindow *uiprivWindowFromNSWindow(NSWindow *w)
 	if (windowDelegate == nil)		// no windows were created yet; we're called with some OS X-provided window
 		return NULL;
 	return [windowDelegate lookupWindow:w];
+}
+
+void uiWindowPosition(uiWindow *w, int *x, int *y)
+{
+    NSScreen *screen;
+    NSRect r;
+
+    r = [w->window frame];
+    *x = r.origin.x;
+    // this is the right screen to use; thanks mikeash in irc.freenode.net/#macdev
+    // -mainScreen is useless for positioning (it's just the key window's screen)
+    // and we use -frame, not -visibleFrame, for dealing with absolute positions
+    screen = (NSScreen *) [[NSScreen screens] objectAtIndex:0];
+    *y = ([screen frame].size.height - r.origin.y) - r.size.height;
+}
+
+void uiWindowSetPosition(uiWindow *w, int x, int y)
+{
+    // -[NSWindow setFrameTopLeftPoint:] is acting weird so...
+    NSRect r;
+    NSScreen *screen;
+
+    // this fires windowDidMove:
+    w->suppressPositionChanged = YES;
+    r = [w->window frame];
+    r.origin.x = x;
+    screen = (NSScreen *) [[NSScreen screens] objectAtIndex:0];
+    r.origin.y = [screen frame].size.height - (y + r.size.height);
+    [w->window setFrameOrigin:r.origin];
+    w->suppressPositionChanged = NO;
+}
+
+void uiWindowCenter(uiWindow *w)
+{
+    w->suppressPositionChanged = YES;
+    [w->window center];
+    w->suppressPositionChanged = NO;
 }
